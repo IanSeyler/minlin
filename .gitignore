@@ -1,3 +1,7 @@
+# Downloads
+linux*.zip
+linux-src/
+
 # Prerequisites
 *.d
 
