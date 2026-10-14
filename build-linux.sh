@@ -6,6 +6,10 @@
 # Downloads the Linux v7.1 source zip, compiles a small static init.c (with
 # musl when available), embeds it as the kernel's built-in initramfs, and
 # configures a minimal x86-64 build for KVM microVMs (virtio-mmio, no PCI).
+#
+# It then builds an ext4 diskimage from the files in rootfs/ plus the host's
+# lighttpd, its modules and the shared libraries they need. init mounts that
+# disk as / and starts whatever /etc/init.conf lists.
 
 set -euo pipefail
 
@@ -21,7 +25,7 @@ log() { printf '\n>>> %s\n' "$*"; }
 
 check_deps() {
     local missing=()
-    for tool in curl unzip make gcc bc flex bison mkfs.ext4 qemu-system-x86_64; do
+    for tool in curl unzip make gcc bc flex bison mkfs.ext4 ldd qemu-system-x86_64; do
         command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
     done
     if [ "${#missing[@]}" -gt 0 ]; then
@@ -83,6 +87,13 @@ configure_kernel() {
         --enable PROC_FS \
         --enable EXT4_FS \
         --set-val LOCALVERSION '""'
+
+    # Syscalls tinyconfig drops but ordinary dynamically linked programs
+    # (glibc's ld.so, lighttpd's event loop) rely on.
+    log "Enabling syscalls needed to run regular userspace programs"
+    "$KERNEL_DIR/scripts/config" --file "$KERNEL_DIR/.config" \
+        --enable FUTEX \
+        --enable EPOLL
 
     log "Embedding init as an uncompressed built-in initramfs"
     "$KERNEL_DIR/scripts/config" --file "$KERNEL_DIR/.config" \
@@ -152,14 +163,39 @@ write_initramfs_list() {
         > "$WORKDIR/initramfs.list"
 }
 
+# Copy a host binary into the rootfs at the same path, along with every
+# shared library it needs (and the dynamic loader), as reported by ldd.
+install_binary() {
+    local bin="$1" rootfs="$WORKDIR/rootfs"
+    cp --parents -L "$bin" "$rootfs"
+    ldd "$bin" | grep -o '/[^ ]*' | while read -r lib; do
+        [ -e "$rootfs$lib" ] || cp --parents -L "$lib" "$rootfs"
+    done
+}
+
+build_rootfs() {
+    local rootfs="$WORKDIR/rootfs"
+    log "Assembling root filesystem in $rootfs"
+    mkdir -p "$rootfs"
+    cp -a "$SCRIPT_DIR/rootfs/." "$rootfs/"
+
+    command -v lighttpd >/dev/null 2>&1 || {
+        echo "lighttpd not found. On Debian/Ubuntu: sudo apt install lighttpd" >&2
+        exit 1
+    }
+    install_binary "$(command -v lighttpd)"
+    # Modules lighttpd.conf loads, plus mod_h2 which lighttpd loads by default.
+    local moddir
+    moddir="$(dirname "$(find /usr/lib -name mod_h2.so -path '*lighttpd*' -print -quit)")"
+    for mod in h2 accesslog; do
+        install_binary "$moddir/mod_$mod.so"
+    done
+}
+
 build_diskimage() {
-    if [ -f "$WORKDIR/diskimage" ]; then
-        log "diskimage already exists, skipping"
-    else
-        log "Creating 128MiB ext4 diskimage"
-        dd if=/dev/zero of="$WORKDIR/diskimage" bs=1M count=128 status=none
-        mkfs.ext4 -q "$WORKDIR/diskimage"
-    fi
+    log "Creating 128MiB ext4 diskimage from $WORKDIR/rootfs"
+    rm -f "$WORKDIR/diskimage"
+    mkfs.ext4 -q -E root_owner=0:0 -d "$WORKDIR/rootfs" "$WORKDIR/diskimage" 128M
 }
 
 boot_qemu() {
@@ -176,5 +212,6 @@ build_init
 write_initramfs_list
 configure_kernel
 build_kernel
+build_rootfs
 build_diskimage
 #boot_qemu
