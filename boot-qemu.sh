@@ -10,8 +10,25 @@
 # host port to use user-mode networking instead and forward that port to the
 # guest's port 80, e.g. to reach lighttpd:
 #   HOSTFWD=8080 ./boot-qemu.sh && curl http://localhost:8080/
+#
+# Kernel messages are hidden (quiet) unless --debug is given.
 
 set -euo pipefail
+
+DEBUG=0
+args=()
+for arg in "$@"; do
+    case "$arg" in
+        --debug) DEBUG=1 ;;
+        *) args+=("$arg") ;;
+    esac
+done
+set -- "${args[@]}"
+
+# quiet keeps kernel messages off the slow emulated serial console, which
+# roughly halves boot time; --debug shows them.
+quiet=quiet
+[ "$DEBUG" -eq 1 ] && quiet=
 
 WORKDIR="${1:-$PWD/linux-src}"
 KERNEL_DIR="$WORKDIR/linux"
@@ -33,7 +50,7 @@ qemu-system-x86_64 "${kvm_flag[@]}" -m 32M -nographic -nodefaults -no-reboot \
     -M microvm,acpi=off,pcie=off,pic=off,rtc=off \
     -serial stdio \
     -kernel "$KERNEL_DIR/arch/x86/boot/bzImage" \
-    -append "console=ttyS0 reboot=t ip=$ip" \
+    -append "console=ttyS0 $quiet reboot=t ip=$ip" \
     -drive id=disk0,file="$WORKDIR/diskimage",if=none,format=raw \
     -device virtio-blk-device,drive=disk0 \
     -netdev "$netdev" \

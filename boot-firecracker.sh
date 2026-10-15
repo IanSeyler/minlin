@@ -15,8 +15,25 @@
 # it is taken from $BRIDGE's subnet: the gateway is the bridge's own address
 # and the guest gets the next address up. Override with GUEST_IP=.
 #   BRIDGE=br0 TAP=fctap0 GUEST_IP=172.19.0.50 ./boot-firecracker.sh
+#
+# Kernel messages are hidden (quiet) unless --debug is given.
 
 set -euo pipefail
+
+DEBUG=0
+args=()
+for arg in "$@"; do
+    case "$arg" in
+        --debug) DEBUG=1 ;;
+        *) args+=("$arg") ;;
+    esac
+done
+set -- "${args[@]}"
+
+# quiet keeps kernel messages off the slow emulated serial console, which
+# roughly halves boot time; --debug shows them.
+quiet=quiet
+[ "$DEBUG" -eq 1 ] && quiet=
 
 WORKDIR="${1:-$PWD/linux-src}"
 KERNEL_DIR="$WORKDIR/linux"
@@ -92,7 +109,7 @@ cat > "$config" <<EOF
 {
     "boot-source": {
         "kernel_image_path": "$KERNEL_DIR/vmlinux",
-        "boot_args": "console=ttyS0 reboot=k panic=1 ip=$GUEST_IP::$gateway:$netmask::eth0:off"
+        "boot_args": "console=ttyS0 $quiet reboot=k panic=1 ip=$GUEST_IP::$gateway:$netmask::eth0:off"
     },
     "drives": [{
         "drive_id": "disk0",
