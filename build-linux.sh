@@ -7,9 +7,8 @@
 # musl when available), embeds it as the kernel's built-in initramfs, and
 # configures a minimal x86-64 build for KVM microVMs (virtio-mmio, no PCI).
 #
-# It then builds an ext4 diskimage from the files in rootfs/ plus the host's
-# lighttpd, its modules and the shared libraries they need. init mounts that
-# disk as / and starts whatever /etc/init.conf lists.
+# The kernel is app-agnostic: build-disk.sh builds the diskimage init mounts
+# as /, holding whichever program from apps/ the VM should run.
 
 set -euo pipefail
 
@@ -25,12 +24,12 @@ log() { printf '\n>>> %s\n' "$*"; }
 
 check_deps() {
     local missing=()
-    for tool in curl unzip make gcc bc flex bison mkfs.ext4 ldd qemu-system-x86_64; do
+    for tool in curl unzip make gcc bc flex bison qemu-system-x86_64; do
         command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
     done
     if [ "${#missing[@]}" -gt 0 ]; then
         echo "Missing required tools: ${missing[*]}" >&2
-        echo "On Debian/Ubuntu: sudo apt install curl unzip build-essential bc flex bison e2fsprogs qemu-system-x86" >&2
+        echo "On Debian/Ubuntu: sudo apt install curl unzip build-essential bc flex bison qemu-system-x86" >&2
         exit 1
     fi
 }
@@ -163,47 +162,13 @@ write_initramfs_list() {
         > "$WORKDIR/initramfs.list"
 }
 
-# Copy a host binary into the rootfs at the same path, along with every
-# shared library it needs (and the dynamic loader), as reported by ldd.
-install_binary() {
-    local bin="$1" rootfs="$WORKDIR/rootfs"
-    cp --parents -L "$bin" "$rootfs"
-    ldd "$bin" | grep -o '/[^ ]*' | while read -r lib; do
-        [ -e "$rootfs$lib" ] || cp --parents -L "$lib" "$rootfs"
-    done
-}
-
-build_rootfs() {
-    local rootfs="$WORKDIR/rootfs"
-    log "Assembling root filesystem in $rootfs"
-    mkdir -p "$rootfs"
-    cp -a "$SCRIPT_DIR/rootfs/." "$rootfs/"
-
-    command -v lighttpd >/dev/null 2>&1 || {
-        echo "lighttpd not found. On Debian/Ubuntu: sudo apt install lighttpd" >&2
-        exit 1
-    }
-    install_binary "$(command -v lighttpd)"
-    # Modules lighttpd.conf loads, plus mod_h2 which lighttpd loads by default.
-    local moddir
-    moddir="$(dirname "$(find /usr/lib -name mod_h2.so -path '*lighttpd*' -print -quit)")"
-    for mod in h2 accesslog; do
-        install_binary "$moddir/mod_$mod.so"
-    done
-}
-
-build_diskimage() {
-    log "Creating 128MiB ext4 diskimage from $WORKDIR/rootfs"
-    rm -f "$WORKDIR/diskimage"
-    mkfs.ext4 -q -E root_owner=0:0 -d "$WORKDIR/rootfs" "$WORKDIR/diskimage" 128M
-}
-
 boot_qemu() {
     log "Booting under QEMU"
     "$SCRIPT_DIR/boot-qemu.sh" "$WORKDIR"
 }
 
-rm -rf "$WORKDIR"
+# Start the kernel build from scratch, but keep any diskimage from build-disk.sh.
+rm -rf "$KERNEL_DIR" "$WORKDIR/init" "$WORKDIR/init.c" "$WORKDIR/initramfs.list"
 mkdir -p "$WORKDIR"
 check_deps
 fetch_kernel
@@ -212,6 +177,4 @@ build_init
 write_initramfs_list
 configure_kernel
 build_kernel
-build_rootfs
-build_diskimage
 #boot_qemu
