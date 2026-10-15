@@ -47,7 +47,8 @@ require() {
 install_binary() {
     local bin="$1"
     cp --parents -L "$bin" "$ROOTFS"
-    ldd "$bin" | grep -o '/[^ ]*' | while read -r lib; do
+    # "|| true": a file with no dependencies gives grep nothing to match.
+    ldd "$bin" | { grep -o '/[^ ]*' || true; } | while read -r lib; do
         [ -e "$ROOTFS$lib" ] || cp --parents -L "$lib" "$ROOTFS"
     done
 }

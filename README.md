@@ -9,6 +9,7 @@ and running ordinary, dynamically linked Linux programs from an ext4 disk.
 
     ./build-linux.sh                 # kernel, with init built in
     ./build-disk.sh lighttpd         # linux-src/diskimage for apps/lighttpd
+                                     # (or: ./build-disk.sh python)
     HOSTFWD=8080 ./boot-qemu.sh      # then: curl http://localhost:8080/
     ./boot-firecracker.sh            # tap on br0; guest gets the next IP up
 
@@ -43,9 +44,15 @@ builds the disk from it:
 `apps/lighttpd` serves `rootfs/var/www` on port 80 with its access log on the
 console.
 
-To add another app (Python, say), create `apps/<name>/` with an
-`etc/init.conf` and an `install.sh` that installs the interpreter and whatever
-else it needs (for Python, its standard library directory too). The kernel is
-still very small (for example no `CONFIG_UNIX`, `CONFIG_MULTIUSER` or
-`CONFIG_SHMEM`), so some programs will need more kernel options enabled in
-`build-linux.sh`.
+`apps/python` runs `rootfs/app/main.py` with the host's `python3` (so the host
+needs Python 3): a small `http.server` on port 80 that reports the Python
+version, kernel and boot parameters, memory (from `/proc/meminfo`) and disk
+space, as HTML at `/` and as JSON at `/metrics.json`. Its standard library is
+copied too, minus the test suite, GUI packages and the static libpython, along
+with the shared libraries its extension modules (ssl, sqlite3, ...) link
+against.
+
+To add another app, create `apps/<name>/` with an `etc/init.conf` and an
+`install.sh` that installs whatever it needs. The kernel is still very small
+(for example no `CONFIG_UNIX`, `CONFIG_MULTIUSER` or `CONFIG_SHMEM`), so some
+programs will need more kernel options enabled in `build-linux.sh`.
