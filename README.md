@@ -3,7 +3,7 @@ Minimal Linux
 
 A tiny x86-64 kernel (tinyconfig plus virtio-mmio) with a hand-written
 `init.c` built into its initramfs, booting under QEMU microvm or Firecracker
-and running ordinary, dynamically linked Linux programs from an ext4 disk.
+and running ordinary, dynamically linked Linux programs from an ext2 disk.
 
 ## Build and boot
 
@@ -22,7 +22,7 @@ libraries (found with `ldd`) are copied into the disk image.
 
 1. The kernel runs `/init` from the built-in initramfs.
 2. init configures `eth0` from the `ip=` kernel parameter.
-3. init mounts `/dev/vda` (ext4), moves it over `/` and chroots into it, then
+3. init mounts `/dev/vda` (ext2), moves it over `/` and chroots into it, then
    mounts `/dev`, `/proc` and `/tmp` there.
 4. init runs the programs listed in `/etc/init.conf`, reaps children, and
    reboots (ending the VM) once nothing is left running.

@@ -52,6 +52,23 @@ fetch_kernel() {
     mv "$WORKDIR/linux-${KERNEL_VERSION}" "$KERNEL_DIR"
 }
 
+# x86-64 allocates struct pages for whole 128MB memory sections and maps them
+# with 2MB huge pages, so even a 32MB guest pays 2MB for its memmap. Shrink
+# sections to 32MB and map the memmap with 4K pages so it costs only what the
+# guest's RAM needs (512KB for 32MB), freeing ~1.5MB.
+patch_kernel() {
+    log "Patching x86-64 sparsemem to size the memmap to guest RAM"
+    sed -i 's/^# define SECTION_SIZE_BITS\t27 .*/# define SECTION_SIZE_BITS\t25/' \
+        "$KERNEL_DIR/arch/x86/include/asm/sparsemem.h"
+    sed -i 's/^\telse if (boot_cpu_has(X86_FEATURE_PSE))$/\telse if (0 \&\& boot_cpu_has(X86_FEATURE_PSE))/' \
+        "$KERNEL_DIR/arch/x86/mm/init_64.c"
+    grep -q $'^# define SECTION_SIZE_BITS\t25$' "$KERNEL_DIR/arch/x86/include/asm/sparsemem.h" &&
+        grep -q '0 && boot_cpu_has(X86_FEATURE_PSE)' "$KERNEL_DIR/arch/x86/mm/init_64.c" || {
+        echo "Kernel patch did not apply; the sparsemem/vmemmap source has changed." >&2
+        exit 1
+    }
+}
+
 configure_kernel() {
     log "Generating tinyconfig for x86_64"
     make -C "$KERNEL_DIR" ARCH=x86_64 tinyconfig
@@ -84,7 +101,7 @@ configure_kernel() {
         --enable INET \
         --disable IPV6 \
         --enable PROC_FS \
-        --enable EXT4_FS \
+        --enable EXT2_FS \
         --set-val LOCALVERSION '""'
 
     # Syscalls tinyconfig drops but ordinary dynamically linked programs
@@ -111,12 +128,16 @@ configure_kernel() {
         --disable INPUT --disable SERIO --disable HID_SUPPORT \
         --disable LEGACY_PTYS --disable UNIX98_PTYS \
         --disable EARLY_PRINTK \
+        --enable PROCESSOR_SELECT \
         --disable CPU_SUP_HYGON --disable CPU_SUP_CENTAUR --disable CPU_SUP_ZHAOXIN \
         --disable SWAP \
         --disable BLOCK_LEGACY_AUTOLOAD \
+        --disable MQ_IOSCHED_DEADLINE --disable MQ_IOSCHED_KYBER \
         --enable PARTITION_ADVANCED --disable MSDOS_PARTITION --disable EFI_PARTITION \
-        --disable EXT4_USE_FOR_EXT2 \
         --disable INET_DIAG \
+        --disable ETHTOOL_NETLINK --disable WIRELESS \
+        --disable LEGACY_TIOCSTI \
+        --disable INITRAMFS_PRESERVE_MTIME \
         --set-val INET_TABLE_PERTURB_ORDER 8 \
         --disable WLAN --disable ETHERNET \
         --disable PROC_SYSCTL --disable PROC_PAGE_MONITOR --disable PROC_PID_ARCH_STATUS \
@@ -172,6 +193,7 @@ rm -rf "$KERNEL_DIR" "$WORKDIR/init" "$WORKDIR/init.c" "$WORKDIR/initramfs.list"
 mkdir -p "$WORKDIR"
 check_deps
 fetch_kernel
+patch_kernel
 write_init
 build_init
 write_initramfs_list

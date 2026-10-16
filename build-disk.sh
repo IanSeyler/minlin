@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Build the ext4 diskimage that init mounts as / for one app.
+# Build the ext2 diskimage that init mounts as / for one app.
 #
 #   ./build-disk.sh <app> [workdir]
 #
@@ -55,7 +55,7 @@ install_binary() {
 
 [ -d "$APP_DIR" ] || { echo "No such app: $APP_DIR" >&2; exit 1; }
 require ldd libc-bin
-require mkfs.ext4 e2fsprogs
+require mkfs.ext2 e2fsprogs
 
 log "Assembling root filesystem for $APP in $ROOTFS"
 rm -rf "$ROOTFS"
@@ -68,6 +68,6 @@ fi
 [ -f "$ROOTFS/etc/init.conf" ] ||
     echo "WARNING: $APP has no etc/init.conf, init will have nothing to run." >&2
 
-log "Creating $DISK_SIZE ext4 diskimage from $ROOTFS"
+log "Creating $DISK_SIZE ext2 diskimage from $ROOTFS"
 rm -f "$WORKDIR/diskimage"
-mkfs.ext4 -q -E root_owner=0:0 -d "$ROOTFS" "$WORKDIR/diskimage" "$DISK_SIZE"
+mkfs.ext2 -q -E root_owner=0:0 -d "$ROOTFS" "$WORKDIR/diskimage" "$DISK_SIZE"
