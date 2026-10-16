@@ -9,7 +9,7 @@ and running ordinary, dynamically linked Linux programs from an ext4 disk.
 
     ./build-linux.sh                 # kernel, with init built in
     ./build-disk.sh lighttpd         # linux-src/diskimage for apps/lighttpd
-                                     # (or: ./build-disk.sh python)
+                                     # (or: ./build-disk.sh python / top)
     HOSTFWD=8080 ./boot-qemu.sh      # then: curl http://localhost:8080/
     ./boot-firecracker.sh            # tap on br0; guest gets the next IP up
 
@@ -51,6 +51,10 @@ space, as HTML at `/` and as JSON at `/metrics.json`. Its standard library is
 copied too, minus the test suite, GUI packages and the static libpython, along
 with the shared libraries its extension modules (ssl, sqlite3, ...) link
 against.
+
+`apps/top` runs the host's `top` (procps) on the serial console, along with
+the `linux` terminfo entry it draws with (the kernel starts init with
+`TERM=linux`). Press `q` to quit top, which also ends the VM.
 
 To add another app, create `apps/<name>/` with an `etc/init.conf` and an
 `install.sh` that installs whatever it needs. The kernel is still very small
