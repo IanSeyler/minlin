@@ -1,11 +1,15 @@
 # minlin
-Minimal Linux
+MINimal LINux
 
 ## Summary
 
-A tiny x86-64 kernel (tinyconfig plus virtio-mmio) with a hand-written
+A tiny x86-64 Linux kernel (tinyconfig plus virtio-mmio) with a hand-written
 `init.c` built into its initramfs, booting under QEMU microvm or Firecracker
 and running ordinary, dynamically linked Linux programs from an ext2 disk.
+
+This project started based on this [blog post](https://nick.zoic.org/art/boot-naked-linux/).
+
+This project is very similar to other Linux "Unikernel" projects.
 
 ## Build and boot
 
@@ -65,13 +69,12 @@ the `linux` terminfo entry it draws with (the kernel starts init with
 `TERM=linux`). Press `q` to quit top, which also ends the VM.
 
 `apps/bash` runs an interactive `bash` on the serial console, with a
-`user@host:dir` prompt (set in `/etc/bash.bashrc`) and a few everyday
-commands (`ls`, `cat`, `grep`, `sed`, `ps`, `free`, `df`, ...) from the host.
-init starts programs with no controlling terminal, so it goes
-through util-linux `setsid -c` to make the console bash's controlling tty;
-that gives job control and a working Ctrl-C. On hosts where coreutils are
-uutils (each command a link to one ~11MB binary), GNU coreutils' `gnu*`
-copies are used instead when installed. `exit` or Ctrl-D ends the VM. See
+`user@host:dir` prompt (set in `/etc/bash.bashrc`) and the host's static
+busybox for the everyday commands (`ls`, `cat`, `grep`, `sed`, `awk`, `ps`,
+`free`, `df`, `vi`, ...), one link per applet. init starts programs with no
+controlling terminal, so it goes through util-linux `setsid -c` to make the
+console bash's controlling tty; that gives job control and a working Ctrl-C.
+`exit` or Ctrl-D ends the VM. See
 [apps/bash/README.md](apps/bash/README.md) for the details.
 
 `apps/sshd` runs the host's OpenSSH server (with the client too) and logs to

@@ -2,7 +2,7 @@
 
 This app runs the host's OpenSSH server as the only program in a minlin
 microVM. Root logs in with a key to `bash`, with the everyday commands from
-`apps/bash` (`ls`, `cat`, `grep`, `sed`, `ps`, `free`, `df`, ...) and the ssh
+`apps/bash` (busybox: `ls`, `cat`, `grep`, `sed`, `ps`, `free`, `df`, ...) and the ssh
 client. Interactive sessions get a real pty with job control, and `scp` and
 `sftp` work.
 
@@ -12,7 +12,7 @@ On the host:
 
 - OpenSSH (`sshd` from openssh-server; `ssh` and `ssh-keygen` from
   openssh-client). The VM gets whatever version the host has.
-- bash and util-linux, for the login shell (see `apps/bash`), plus what
+- bash, util-linux and busybox, for the login shell (see `apps/bash`), plus what
   minlin itself needs (see the top-level README).
 - A public key to log in with. Password logins are off.
 

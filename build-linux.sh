@@ -90,7 +90,7 @@ configure_kernel() {
         --enable BINFMT_ELF \
         --enable PRINTK \
         --enable PRINTK_TIME \
-        --set-val LOG_BUF_SHIFT 12 \
+        --set-val LOG_BUF_SHIFT 13 \
         --enable DEVTMPFS \
         --enable DEVTMPFS_MOUNT \
         --enable TTY \

@@ -1,8 +1,8 @@
 # bash on minlin
 
 This app runs the host's `bash` as the only program in a minlin microVM, on
-the serial console, along with a handful of everyday commands from the host.
-It has job control and a working Ctrl-C, and `exit` (or Ctrl-D) ends the VM.
+the serial console, with the host's busybox for the everyday commands. It has
+job control and a working Ctrl-C, and `exit` (or Ctrl-D) ends the VM.
 
 `apps/sshd` uses this app's `install.sh` for its login shell, so everything
 here applies to ssh sessions too.
@@ -12,8 +12,7 @@ here applies to ssh sessions too.
 On the host:
 
 - bash, and util-linux for `setsid`.
-- GNU coreutils under its `gnu`-prefixed names (`gnu-coreutils`) if the
-  host's coreutils are uutils (see [Commands](#commands)).
+- busybox (`busybox-static`).
 - What minlin itself needs (see the top-level README).
 
 ## Build and boot
@@ -39,18 +38,17 @@ sessions) read `/etc/profile`, which loads it. On the console, init sets
 
 ## Commands
 
-Apart from bash's builtins, the disk has:
+Apart from bash's builtins, the commands come from the host's busybox.
+`install.sh` copies the one binary to `/usr/bin/busybox` and links every
+applet it was built with (`busybox --list`) to it, so the disk has whatever
+the host's busybox has: `ls`, `cat`, `cp`, `grep`, `sed`, `awk`, `find`,
+`tar`, `ps`, `top`, `free`, `df`, `vi`, `less`, `stty`, `ip`, `wget`, ...
+Debian/Ubuntu's `busybox-static` (about 2MB) needs no shared libraries.
 
-    cat chmod cp date df du env free grep head id ln ls mkdir mv ps rm rmdir
-    sed sleep sort stat tail touch tty uname uniq wc
-
-To add one, add it to the list in `install.sh`. A command the host doesn't
-have is skipped with a message.
-
-On Ubuntu the default coreutils are uutils, where each command is a link to
-one ~11MB multi-call binary. Copying that once per command overflows the
-128MB disk. When the host has GNU coreutils' `gnu`-prefixed copies (`gnuls`,
-`gnucat`, ...), `install.sh` installs those under the plain names instead.
+A command already on the disk when the links are made keeps its real
+version: `bash` and util-linux `setsid` (busybox's has no `-w`). For any
+other command you want the host's version of instead, `install_binary` it
+before the busybox loop in `install.sh`.
 
 ## Controlling terminal
 
@@ -70,12 +68,13 @@ The kernel starts init with `TERM=linux`, which init passes on to bash.
 readline needs that terminal's terminfo entry for line editing, so it's
 copied from the host. A serial console can't report its size, so bash
 assumes 80x24, and lines longer than the real window wrap oddly when
-edited. There's no `stty` on the disk to change that.
+edited. Set the real size with busybox's `stty`, e.g. `stty rows 50 cols 160`.
 
 ## Memory
 
-The disk holds 9.6MB, mostly shared libraries. The default 32MB of RAM is
-plenty: with bash at its prompt, `free` reports about 17MB available.
+The disk holds 6.2MB: bash and its libraries, setsid, and busybox. The
+default 32MB of RAM is plenty: with bash at its prompt, `free` reports about
+17MB available.
 
 ## What's on the disk
 
@@ -83,7 +82,8 @@ plenty: with bash at its prompt, `free` reports about 17MB available.
 |------|---------|
 | `/usr/bin/bash` | the host's bash |
 | `/usr/bin/setsid` | gives bash the console as its controlling terminal |
-| `/usr/bin/*` | the commands listed above |
+| `/usr/bin/busybox` | the everyday commands |
+| `/usr/bin/*` | links to busybox, one per applet |
 | `/etc/init.conf` | starts bash on the console |
 | `/etc/bash.bashrc`, `/etc/profile` | the prompt |
 | `/etc/passwd` | `root`, so the prompt can show a user name |
