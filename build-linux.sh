@@ -3,8 +3,8 @@
 # Build and boot a "naked" Linux kernel with a hand-written init, following
 # https://nick.zoic.org/art/boot-naked-linux/
 #
-# Downloads the Linux v7.1 source zip, compiles a small static init.c (with
-# musl when available), embeds it as the kernel's built-in initramfs, and
+# Downloads the Linux source zip, compiles a small static init.c (with musl
+# when available), embeds it as the kernel's built-in initramfs, and
 # configures a minimal x86-64 build for KVM microVMs (virtio-mmio, no PCI).
 #
 # The kernel is app-agnostic: build-disk.sh builds the diskimage init mounts
