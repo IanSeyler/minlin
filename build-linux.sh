@@ -151,6 +151,17 @@ configure_kernel() {
         --enable NFT_NAT \
         --enable NFT_MASQ
 
+    # sshd changes uid/gid (and supplementary groups) even when the login is
+    # root, times out logins with setitimer, and runs an interactive session
+    # on a pty (devpts, which init mounts on /dev/pts). glibc locks utmp
+    # before recording a login there (as SQLite, for one, locks its files).
+    log "Enabling uid/gid syscalls, interval timers, ptys and file locks for sshd"
+    "$KERNEL_DIR/scripts/config" --file "$KERNEL_DIR/.config" \
+        --enable MULTIUSER \
+        --enable POSIX_TIMERS \
+        --enable UNIX98_PTYS \
+        --enable FILE_LOCKING
+
     log "Embedding init as an uncompressed built-in initramfs"
     "$KERNEL_DIR/scripts/config" --file "$KERNEL_DIR/.config" \
         --enable BLK_DEV_INITRD \
@@ -166,7 +177,7 @@ configure_kernel() {
         --disable PCI \
         --disable VT --disable VGA_CONSOLE --disable DUMMY_CONSOLE \
         --disable INPUT --disable SERIO --disable HID_SUPPORT \
-        --disable LEGACY_PTYS --disable UNIX98_PTYS \
+        --disable LEGACY_PTYS \
         --disable EARLY_PRINTK \
         --enable PROCESSOR_SELECT \
         --disable CPU_SUP_HYGON --disable CPU_SUP_CENTAUR --disable CPU_SUP_ZHAOXIN \

@@ -1,0 +1,14 @@
+# Root logs in with a key from /root/.ssh/authorized_keys (SSH_AUTHORIZED_KEYS
+# at build time); there are no passwords and no PAM stack on the disk.
+HostKey /etc/ssh/ssh_host_ed25519_key
+PermitRootLogin prohibit-password
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+UsePAM no
+
+# No lastlog or motd on the disk, and no DNS to look clients up in.
+PrintMotd no
+PrintLastLog no
+UseDNS no
+
+Subsystem sftp /usr/lib/openssh/sftp-server

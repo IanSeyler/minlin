@@ -72,4 +72,9 @@ fi
 
 log "Creating $DISK_SIZE ext2 diskimage from $ROOTFS"
 rm -f "$WORKDIR/diskimage"
-mkfs.ext2 -q -E root_owner=0:0 -d "$ROOTFS" "$WORKDIR/diskimage" "$DISK_SIZE"
+# mke2fs -d with a directory keeps each file's owner (whoever ran the build),
+# so go through a tarball that records everything as root's. sshd, for one,
+# refuses a privsep directory or keys that root doesn't own.
+tar -C "$ROOTFS" --owner=0 --group=0 --numeric-owner -cf "$WORKDIR/rootfs.tar" .
+mkfs.ext2 -q -d "$WORKDIR/rootfs.tar" "$WORKDIR/diskimage" "$DISK_SIZE"
+rm -f "$WORKDIR/rootfs.tar"

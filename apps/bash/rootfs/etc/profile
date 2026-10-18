@@ -1,0 +1,6 @@
+# Read by login shells (ssh sessions). Interactive bash settings, such as the
+# prompt, are in /etc/bash.bashrc.
+
+if [ -n "$PS1" ] && [ -n "$BASH" ] && [ -r /etc/bash.bashrc ]; then
+    . /etc/bash.bashrc
+fi

@@ -11,8 +11,9 @@ and running ordinary, dynamically linked Linux programs from an ext2 disk.
 
     ./build-linux.sh                 # kernel, with init built in
     ./build-disk.sh lighttpd         # linux-src/diskimage for apps/lighttpd
-                                     # (or: ./build-disk.sh python / top)
+                                     # (or: python / top / bash / sshd)
     HOSTFWD=8080 ./boot-qemu.sh      # then: curl http://localhost:8080/
+                                     # (SSHFWD=2222 for ssh -p 2222 root@localhost)
     ./boot-firecracker.sh            # tap on br0; guest gets the next IP up
                                      # (both take MEM=<MB>, default 32,
                                      #  and GUEST_NAME=, default minlin)
@@ -28,7 +29,7 @@ libraries (found with `ldd`) are copied into the disk image.
 2. init configures `eth0`, and the hostname if given, from the `ip=` kernel
    parameter.
 3. init mounts `/dev/vda` (ext2), moves it over `/` and chroots into it, then
-   mounts `/dev`, `/proc` and `/tmp` there.
+   mounts `/dev`, `/dev/pts`, `/proc` and `/tmp` there.
 4. init applies `/etc/sysctl.conf` if the disk has one (`key = value` lines,
    as for `sysctl -p`).
 5. init runs the programs listed in `/etc/init.conf`, reaps children, and
@@ -39,8 +40,8 @@ libraries (found with `ldd`) are copied into the disk image.
 Each directory in `apps/` is something the VM can run. `build-disk.sh <app>`
 builds the disk from it:
 
-- `rootfs/` is copied onto the disk as-is. It should hold `etc/init.conf`,
-  which says what init starts. Each line is
+- `rootfs/` is copied onto the disk as-is (everything owned by root). It
+  should hold `etc/init.conf`, which says what init starts. Each line is
   `<wait|once|respawn> /absolute/path [args...]`.
 - `install.sh` (optional) is sourced afterwards. It can call
   `install_binary /path/on/host` to copy a host program and the shared
@@ -63,6 +64,31 @@ against.
 the `linux` terminfo entry it draws with (the kernel starts init with
 `TERM=linux`). Press `q` to quit top, which also ends the VM.
 
+`apps/bash` runs an interactive `bash` on the serial console, with a
+`user@host:dir` prompt (set in `/etc/bash.bashrc`) and a few everyday
+commands (`ls`, `cat`, `grep`, `sed`, `ps`, `free`, `df`, ...) from the host.
+init starts programs with no controlling terminal, so it goes
+through util-linux `setsid -c` to make the console bash's controlling tty;
+that gives job control and a working Ctrl-C. On hosts where coreutils are
+uutils (each command a link to one ~11MB binary), GNU coreutils' `gnu*`
+copies are used instead when installed. `exit` or Ctrl-D ends the VM. See
+[apps/bash/README.md](apps/bash/README.md) for the details.
+
+`apps/sshd` runs the host's OpenSSH server (with the client too) and logs to
+the console, with `bash` and the commands from `apps/bash` as root's login
+shell. Root logs in with a key: `SSH_AUTHORIZED_KEYS` names the public key
+file to put in `/root/.ssh/authorized_keys`. The ed25519 host key is
+generated on the first build and kept in the work directory
+(`linux-src/ssh_host_ed25519_key`), so it survives rebuilding the disk:
+
+    SSH_AUTHORIZED_KEYS=~/.ssh/id_ed25519.pub ./build-disk.sh sshd
+    SSHFWD=2222 ./boot-qemu.sh       # then: ssh -p 2222 root@localhost
+
+To shut it down, run `kill $(cat /run/sshd.pid)` in a session and log out:
+init reboots once the last session ends. Killing the VM instead can leave the
+(unjournaled) ext2 disk needing fsck. See
+[apps/sshd/README.md](apps/sshd/README.md) for the details.
+
 `apps/tailscale` runs the host's `tailscaled` with kernel-mode networking (a
 `tailscale0` TUN device and policy routing; IPv4 only), using 1.1.1.1 and
 8.8.8.8 for DNS. Build it with an auth key, ideally an ephemeral one, and give
@@ -79,5 +105,5 @@ is IPv6 forwarding, which the guest doesn't have.
 
 To add another app, create `apps/<name>/` with an `etc/init.conf` and an
 `install.sh` that installs whatever it needs. The kernel is still very small
-(for example no `CONFIG_MULTIUSER`, `CONFIG_SHMEM` or `CONFIG_IPV6`), so some
+(for example no `CONFIG_SHMEM` or `CONFIG_IPV6`), so some
 programs will need more kernel options enabled in `build-linux.sh`.

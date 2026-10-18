@@ -10,6 +10,9 @@
 # host port to use user-mode networking instead and forward that port to the
 # guest's port 80, e.g. to reach lighttpd:
 #   HOSTFWD=8080 ./boot-qemu.sh && curl http://localhost:8080/
+# SSHFWD does the same for the guest's port 22 (the sshd app), and either one
+# or both can be set:
+#   SSHFWD=2222 ./boot-qemu.sh && ssh -p 2222 root@localhost
 #
 # Guest RAM is 32MB unless MEM= says otherwise (in MB). The guest's hostname
 # is the kernel's default (minlin) unless GUEST_NAME= gives one.
@@ -37,15 +40,18 @@ WORKDIR="${1:-$PWD/linux-src}"
 KERNEL_DIR="$WORKDIR/linux"
 
 HOSTFWD="${HOSTFWD:-}"
+SSHFWD="${SSHFWD:-}"
 MEM="${MEM:-32}"
 GUEST_NAME="${GUEST_NAME:-}"
 
 kvm_flag=()
 [ -w /dev/kvm ] && kvm_flag=(-enable-kvm -cpu host)
 
-if [ -n "$HOSTFWD" ]; then
+if [ -n "$HOSTFWD$SSHFWD" ]; then
     ip="10.0.2.15::10.0.2.2:255.255.255.0:$GUEST_NAME:eth0:off"
-    netdev="user,id=testnet1,hostfwd=tcp::$HOSTFWD-:80"
+    netdev="user,id=testnet1"
+    [ -n "$HOSTFWD" ] && netdev+=",hostfwd=tcp::$HOSTFWD-:80"
+    [ -n "$SSHFWD" ] && netdev+=",hostfwd=tcp::$SSHFWD-:22"
 else
     ip="192.168.1.2:::255.255.255.0:$GUEST_NAME:eth0:off"
     netdev="socket,id=testnet1,listen=:1234"

@@ -170,6 +170,10 @@ static int mount_root(void) {
 	for (size_t i = 0; i < sizeof(links) / sizeof(links[0]); i++)
 		if (symlink(links[i][0], links[i][1]) < 0 && errno != EEXIST)
 			perror(links[i][1]);
+	/* ptys, for sshd's interactive sessions. */
+	mkdir("/dev/pts", 0755);
+	if (mount("devpts", "/dev/pts", "devpts", 0, NULL) < 0)
+		perror("mount /dev/pts");
 	/* Without CONFIG_SHMEM, tmpfs is backed by ramfs. */
 	mkdir("/tmp", 01777);
 	if (mount("tmpfs", "/tmp", "tmpfs", 0, NULL) < 0)
