@@ -11,10 +11,13 @@
 # and removed again on exit; an existing $TAP is used as-is and left alone.
 #
 # The guest's address is passed on the kernel command line as
-# ip=<client>::<gateway>:<netmask>::eth0:off, which init applies. By default
+# ip=<client>::<gateway>:<netmask>:<hostname>:eth0:off, which init applies. By default
 # it is taken from $BRIDGE's subnet: the gateway is the bridge's own address
 # and the guest gets the next address up. Override with GUEST_IP=.
 #   BRIDGE=br0 TAP=fctap0 GUEST_IP=172.19.0.50 ./boot-firecracker.sh
+#
+# Guest RAM is 32MB unless MEM= says otherwise (in MB). The guest's hostname
+# is the kernel's default (minlin) unless GUEST_NAME= gives one.
 #
 # Kernel messages are hidden (quiet) unless --debug is given.
 
@@ -40,6 +43,8 @@ KERNEL_DIR="$WORKDIR/linux"
 BRIDGE="${BRIDGE:-br0}"
 TAP="${TAP:-fctap0}"
 GUEST_IP="${GUEST_IP:-}"
+MEM="${MEM:-32}"
+GUEST_NAME="${GUEST_NAME:-}"
 
 if [ ! -r /dev/kvm ] || [ ! -w /dev/kvm ]; then
     echo "Firecracker needs read/write access to /dev/kvm" >&2
@@ -109,7 +114,7 @@ cat > "$config" <<EOF
 {
     "boot-source": {
         "kernel_image_path": "$KERNEL_DIR/vmlinux",
-        "boot_args": "console=ttyS0 $quiet reboot=k panic=1 ip=$GUEST_IP::$gateway:$netmask::eth0:off"
+        "boot_args": "console=ttyS0 $quiet reboot=k panic=1 ip=$GUEST_IP::$gateway:$netmask:$GUEST_NAME:eth0:off"
     },
     "drives": [{
         "drive_id": "disk0",
@@ -124,7 +129,7 @@ cat > "$config" <<EOF
     }],
     "machine-config": {
         "vcpu_count": 1,
-        "mem_size_mib": 32
+        "mem_size_mib": $MEM
     }
 }
 EOF

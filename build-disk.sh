@@ -44,11 +44,13 @@ require() {
 
 # Copy a host binary into the rootfs at the same path, along with every
 # shared library it needs (and the dynamic loader), as reported by ldd.
+# A static binary is just copied.
 install_binary() {
     local bin="$1"
     cp --parents -L "$bin" "$ROOTFS"
-    # "|| true": a file with no dependencies gives grep nothing to match.
-    ldd "$bin" | { grep -o '/[^ ]*' || true; } | while read -r lib; do
+    # "|| true": ldd fails on a static binary, and a file with no
+    # dependencies gives grep nothing to match.
+    { ldd "$bin" 2>/dev/null || true; } | { grep -o '/[^ ]*' || true; } | while read -r lib; do
         [ -e "$ROOTFS$lib" ] || cp --parents -L "$lib" "$ROOTFS"
     done
 }

@@ -81,7 +81,15 @@ static void setup_network(void) {
 		field[i] = *f ? f : NULL;
 	}
 	const char *client = field[0], *gw = field[2], *mask = field[3];
+	const char *host = field[4];
 	const char *dev = field[5] ? field[5] : "eth0";
+
+	if (host) {
+		if (sethostname(host, strlen(host)) < 0)
+			perror("sethostname");
+		else
+			fprintf(stderr, "hostname %s\n", host);
+	}
 
 	if (!client) {
 		fprintf(stderr, "No client address in ip=%s\n", ip);
@@ -124,6 +132,7 @@ out:
 #define ROOT_DEV	"/dev/vda"
 #define ROOT_FSTYPE	"ext2"
 #define INIT_CONF	"/etc/init.conf"
+#define SYSCTL_CONF	"/etc/sysctl.conf"
 #define MAX_SERVICES	16
 #define MAX_ARGS	32
 
@@ -166,6 +175,55 @@ static int mount_root(void) {
 	if (mount("tmpfs", "/tmp", "tmpfs", 0, NULL) < 0)
 		perror("mount /tmp");
 	return 0;
+}
+
+/*
+ * Apply SYSCTL_CONF, if the disk has one, the way sysctl -p does: each line
+ * that is not blank or a '#' or ';' comment is
+ *   <key> = <value>
+ * with the key in dotted form (net.ipv4.ip_forward), written to /proc/sys.
+ */
+static void apply_sysctls(void) {
+	FILE *f = fopen(SYSCTL_CONF, "r");
+	if (!f) {
+		if (errno != ENOENT)
+			perror("open " SYSCTL_CONF);
+		return;
+	}
+
+	char line[256];
+	int lineno = 0;
+	while (fgets(line, sizeof(line), f)) {
+		lineno++;
+		char *key = line + strspn(line, " \t");
+		if (!*key || strchr("#;\r\n", *key))
+			continue;
+		char *eq = strchr(key, '=');
+		if (!eq) {
+			fprintf(stderr, SYSCTL_CONF ":%d: no '='\n", lineno);
+			continue;
+		}
+		char *end = eq;
+		while (end > key && strchr(" \t", end[-1]))
+			end--;
+		*end = '\0';
+		char *value = eq + 1 + strspn(eq + 1, " \t");
+		value[strcspn(value, "\r\n")] = '\0';
+
+		char path[256];
+		snprintf(path, sizeof(path), "/proc/sys/%s", key);
+		for (char *p = path + strlen("/proc/sys/"); *p; p++)
+			if (*p == '.')
+				*p = '/';
+		int fd = open(path, O_WRONLY);
+		if (fd < 0 || write(fd, value, strlen(value)) < 0)
+			fprintf(stderr, "sysctl %s: %s\n", key, strerror(errno));
+		else
+			fprintf(stderr, "sysctl %s = %s\n", key, value);
+		if (fd >= 0)
+			close(fd);
+	}
+	fclose(f);
 }
 
 enum action { ACT_WAIT, ACT_ONCE, ACT_RESPAWN };
@@ -309,6 +367,7 @@ int main(void) {
 	setup_network();
 
 	if (mount_root() == 0 && read_conf() == 0) {
+		apply_sysctls();
 		setenv("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", 1);
 		setenv("HOME", "/", 1);
 

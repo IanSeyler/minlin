@@ -11,6 +11,9 @@
 # guest's port 80, e.g. to reach lighttpd:
 #   HOSTFWD=8080 ./boot-qemu.sh && curl http://localhost:8080/
 #
+# Guest RAM is 32MB unless MEM= says otherwise (in MB). The guest's hostname
+# is the kernel's default (minlin) unless GUEST_NAME= gives one.
+#
 # Kernel messages are hidden (quiet) unless --debug is given.
 
 set -euo pipefail
@@ -34,19 +37,21 @@ WORKDIR="${1:-$PWD/linux-src}"
 KERNEL_DIR="$WORKDIR/linux"
 
 HOSTFWD="${HOSTFWD:-}"
+MEM="${MEM:-32}"
+GUEST_NAME="${GUEST_NAME:-}"
 
 kvm_flag=()
 [ -w /dev/kvm ] && kvm_flag=(-enable-kvm -cpu host)
 
 if [ -n "$HOSTFWD" ]; then
-    ip="10.0.2.15::10.0.2.2:255.255.255.0::eth0:off"
+    ip="10.0.2.15::10.0.2.2:255.255.255.0:$GUEST_NAME:eth0:off"
     netdev="user,id=testnet1,hostfwd=tcp::$HOSTFWD-:80"
 else
-    ip="192.168.1.2:::255.255.255.0::eth0:off"
+    ip="192.168.1.2:::255.255.255.0:$GUEST_NAME:eth0:off"
     netdev="socket,id=testnet1,listen=:1234"
 fi
 
-qemu-system-x86_64 "${kvm_flag[@]}" -m 32M -nographic -nodefaults -no-reboot \
+qemu-system-x86_64 "${kvm_flag[@]}" -m "${MEM}M" -nographic -nodefaults -no-reboot \
     -M microvm,acpi=off,pcie=off,pic=off,rtc=off \
     -serial stdio \
     -kernel "$KERNEL_DIR/arch/x86/boot/bzImage" \

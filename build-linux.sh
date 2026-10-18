@@ -67,6 +67,18 @@ patch_kernel() {
         echo "Kernel patch did not apply; the sparsemem/vmemmap source has changed." >&2
         exit 1
     }
+
+    # Go programs reserve tens of MB of address space up front, which the
+    # default heuristic overcommit refuses outright on a 32MB guest with no
+    # swap. Make "always overcommit" the built-in default rather than leave
+    # every Go app to set vm.overcommit_memory in its /etc/sysctl.conf.
+    log "Patching the overcommit policy default to always"
+    sed -i 's/^int sysctl_overcommit_memory __read_mostly = OVERCOMMIT_GUESS;$/int sysctl_overcommit_memory __read_mostly = OVERCOMMIT_ALWAYS;/' \
+        "$KERNEL_DIR/mm/util.c"
+    grep -q '^int sysctl_overcommit_memory __read_mostly = OVERCOMMIT_ALWAYS;$' "$KERNEL_DIR/mm/util.c" || {
+        echo "Kernel patch did not apply; the overcommit default in mm/util.c has changed." >&2
+        exit 1
+    }
 }
 
 configure_kernel() {
@@ -102,7 +114,8 @@ configure_kernel() {
         --disable IPV6 \
         --enable PROC_FS \
         --enable EXT2_FS \
-        --set-val LOCALVERSION '""'
+        --set-val LOCALVERSION '""' \
+        --set-str DEFAULT_HOSTNAME minlin
 
     # Syscalls tinyconfig drops but ordinary dynamically linked programs
     # (glibc's ld.so, lighttpd's event loop) rely on.
@@ -110,6 +123,33 @@ configure_kernel() {
     "$KERNEL_DIR/scripts/config" --file "$KERNEL_DIR/.config" \
         --enable FUTEX \
         --enable EPOLL
+
+    # Go programs (tailscaled) need eventfd for the runtime's network poller.
+    # Tailscale's kernel-mode networking adds a TUN device, policy routing
+    # rules and a local API on a Unix socket.
+    log "Enabling eventfd, Unix sockets, TUN and policy routing for Tailscale"
+    "$KERNEL_DIR/scripts/config" --file "$KERNEL_DIR/.config" \
+        --enable EVENTFD \
+        --enable UNIX \
+        --enable TUN \
+        --enable IP_ADVANCED_ROUTER \
+        --enable IP_MULTIPLE_TABLES
+
+    # A Tailscale exit node forwards tailnet traffic out of eth0: init turns
+    # on net.ipv4.ip_forward from the app's /etc/sysctl.conf (via
+    # /proc/sys), and tailscaled masquerades the traffic with nftables, which
+    # it programs over netlink without needing the nft or iptables tools.
+    log "Enabling sysctls and nftables NAT for forwarding (Tailscale exit node)"
+    "$KERNEL_DIR/scripts/config" --file "$KERNEL_DIR/.config" \
+        --enable PROC_SYSCTL \
+        --enable NETFILTER \
+        --enable NF_CONNTRACK \
+        --enable NF_NAT \
+        --enable NF_TABLES \
+        --enable NF_TABLES_IPV4 \
+        --enable NFT_CT \
+        --enable NFT_NAT \
+        --enable NFT_MASQ
 
     log "Embedding init as an uncompressed built-in initramfs"
     "$KERNEL_DIR/scripts/config" --file "$KERNEL_DIR/.config" \
@@ -140,7 +180,7 @@ configure_kernel() {
         --disable INITRAMFS_PRESERVE_MTIME \
         --set-val INET_TABLE_PERTURB_ORDER 8 \
         --disable WLAN --disable ETHERNET \
-        --disable PROC_SYSCTL --disable PROC_PAGE_MONITOR --disable PROC_PID_ARCH_STATUS \
+        --disable PROC_PAGE_MONITOR --disable PROC_PID_ARCH_STATUS \
         --enable INIT_STACK_NONE --disable INIT_STACK_ALL_ZERO \
         --enable NO_HZ_IDLE --disable HZ_PERIODIC \
         --enable HZ_100 --disable HZ_250
