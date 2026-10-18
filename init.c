@@ -119,7 +119,7 @@ static void setup_network(void) {
 		perror("ioctl SIOCSIFFLAGS");
 		goto out;
 	}
-	fprintf(stderr, "%s up with %s netmask %s\n", dev, client,
+	fprintf(stderr, "net: %s up with %s netmask %s\n", dev, client,
 		mask ? mask : "(classful default)");
 
 	if (gw && add_default_route(sock, dev, gw) == 0)
@@ -152,7 +152,7 @@ static int mount_root(void) {
 		perror("switch to " ROOT_DEV);
 		return -1;
 	}
-	fprintf(stderr, "Mounted %s (%s) as /\n", ROOT_DEV, ROOT_FSTYPE);
+	fprintf(stderr, "nvs: mounted %s (%s) as /\n", ROOT_DEV, ROOT_FSTYPE);
 
 	mkdir("/dev", 0755);
 	if (mount("devtmpfs", "/dev", "devtmpfs", 0, NULL) < 0)
@@ -360,12 +360,12 @@ static void wait_for(pid_t target) {
 }
 
 int main(void) {
-	fprintf(stderr, "Hello from init.c!\n");
+	fprintf(stderr, "minlin - MINimal LINux\n");
 	mount("devtmpfs", "/dev", "devtmpfs", 0, NULL);
 
 	struct sysinfo info;
 	if (sysinfo(&info) == 0)
-		fprintf(stderr, "Free memory: %lu KB\n",
+		fprintf(stderr, "mem: %lu KiB free\n",
 			(unsigned long)(info.freeram * info.mem_unit) / 1024);
 
 	setup_network();
