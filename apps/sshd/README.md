@@ -56,10 +56,10 @@ then log out. Stopping the listener doesn't end sessions that are already
 open; once the last one ends, init has nothing left running, so it syncs the
 disk and reboots, which ends the VM.
 
-Avoid killing the VM instead (Ctrl-A x in QEMU): the disk is ext2, which has
-no journal, so it can be left inconsistent. A later boot may then report
-errors like `ext2_lookup: deleted inode referenced`. Rebuild the disk, or run
-`e2fsck -f linux-src/diskimage`, if that happens.
+Avoid killing the VM instead (Ctrl-A x in QEMU): the disk is ext4, so its
+journal keeps the filesystem consistent, but writes that weren't synced yet
+(a login's utmp/wtmp records, say) can be lost. The next boot replays the
+journal when init mounts the disk.
 
 sshd runs as `once`, not `respawn`. With `respawn` init would never run out
 of programs, so it would never sync and reboot.

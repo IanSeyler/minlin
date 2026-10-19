@@ -5,7 +5,7 @@ MINimal LINux
 
 A tiny x86-64 Linux kernel (tinyconfig plus virtio-mmio) with a hand-written
 `init.c` built into its initramfs, booting under QEMU microvm or Firecracker
-and running ordinary, dynamically linked Linux programs from an ext2 disk.
+and running ordinary, dynamically linked Linux programs from an ext4 disk.
 
 This project started based on this [blog post](https://nick.zoic.org/art/boot-naked-linux/).
 
@@ -32,7 +32,7 @@ libraries (found with `ldd`) are copied into the disk image.
 1. The kernel runs `/init` from the built-in initramfs.
 2. init configures `eth0`, and the hostname if given, from the `ip=` kernel
    parameter.
-3. init mounts `/dev/vda` (ext2), moves it over `/` and chroots into it, then
+3. init mounts `/dev/vda` (ext4), moves it over `/` and chroots into it, then
    mounts `/dev`, `/dev/pts`, `/proc` and `/tmp` there.
 4. init applies `/etc/sysctl.conf` if the disk has one (`key = value` lines,
    as for `sysctl -p`).
@@ -88,8 +88,8 @@ generated on the first build and kept in the work directory
     SSHFWD=2222 ./boot-qemu.sh       # then: ssh -p 2222 root@localhost
 
 To shut it down, run `kill $(cat /run/sshd.pid)` in a session and log out:
-init reboots once the last session ends. Killing the VM instead can leave the
-(unjournaled) ext2 disk needing fsck. See
+init reboots once the last session ends. Killing the VM instead can lose
+recent writes that weren't synced to the disk yet. See
 [apps/sshd/README.md](apps/sshd/README.md) for the details.
 
 `apps/tailscale` runs the host's `tailscaled` with kernel-mode networking (a

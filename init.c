@@ -130,7 +130,7 @@ out:
 
 
 #define ROOT_DEV	"/dev/vda"
-#define ROOT_FSTYPE	"ext2"
+#define ROOT_FSTYPE	"ext4"
 #define INIT_CONF	"/etc/init.conf"
 #define SYSCTL_CONF	"/etc/sysctl.conf"
 #define MAX_SERVICES	16

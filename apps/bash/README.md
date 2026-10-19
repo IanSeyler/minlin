@@ -91,10 +91,9 @@ default 32MB of RAM is plenty: with bash at its prompt, `free` reports about
 | `/lib64/`, `/usr/lib/x86_64-linux-gnu/` | shared libraries the programs need |
 
 The disk is writable. bash saves its history to `/.bash_history` on exit, so
-it carries over to the next boot until the disk is rebuilt. Because ext2 has
-no journal, killing the VM (Ctrl-A x in QEMU) instead of typing `exit` can
-leave the disk inconsistent. Rebuild it, or run
-`e2fsck -f linux-src/diskimage`, if that happens.
+it carries over to the next boot until the disk is rebuilt. Killing the VM
+(Ctrl-A x in QEMU) instead of typing `exit` skips that save and the final
+sync; ext4's journal keeps the disk consistent, but unsynced writes are lost.
 
 ## Kernel support
 

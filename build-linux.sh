@@ -113,7 +113,7 @@ configure_kernel() {
         --enable INET \
         --disable IPV6 \
         --enable PROC_FS \
-        --enable EXT2_FS \
+        --enable EXT4_FS \
         --set-val LOCALVERSION '""' \
         --set-str DEFAULT_HOSTNAME minlin
 
