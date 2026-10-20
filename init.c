@@ -125,7 +125,7 @@ static void setup_network(void) {
 	if (gw && add_default_route(sock, dev, gw) == 0)
 		fprintf(stderr, ", gateway %s\n", gw);
 	else
-		fprintf(stderr, "\n";
+		fprintf(stderr, "\n");
 out:
 	close(sock);
 }
