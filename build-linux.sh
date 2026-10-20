@@ -19,7 +19,7 @@ WORKDIR="${1:-$PWD/linux-src}"
 KERNEL_DIR="$WORKDIR/linux"
 SYS_DIR="$SCRIPT_DIR/sys"
 JOBS="$(nproc)"
-KERNEL_VERSION="7.1"
+KERNEL_VERSION="7.1" # 6.18 also tested as it is LTS
 KERNEL_ZIP_URL="https://github.com/torvalds/linux/archive/refs/tags/v${KERNEL_VERSION}.zip"
 KERNEL_ZIP="$SCRIPT_DIR/linux-${KERNEL_VERSION}.zip"
 
