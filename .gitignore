@@ -1,6 +1,7 @@
 # Downloads
 linux*.zip
 linux-src/
+sys/
 
 # Prerequisites
 *.d

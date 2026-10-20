@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Build the ext4 diskimage that init mounts as / for one app.
+# Build the ext4 diskimage (sys/diskimage) that init mounts as / for one app.
 #
 #   ./build-disk.sh <app> [workdir]
 #
@@ -29,6 +29,7 @@ APP="$1"
 APP_DIR="$SCRIPT_DIR/apps/$APP"
 WORKDIR="${2:-$PWD/linux-src}"
 ROOTFS="$WORKDIR/rootfs"
+SYS_DIR="$SCRIPT_DIR/sys"
 DISK_SIZE=128M
 
 log() { printf '\n>>> %s\n' "$*"; }
@@ -71,10 +72,11 @@ fi
     echo "WARNING: $APP has no etc/init.conf, init will have nothing to run." >&2
 
 log "Creating $DISK_SIZE ext4 diskimage from $ROOTFS"
-rm -f "$WORKDIR/diskimage"
+mkdir -p "$SYS_DIR"
+rm -f "$SYS_DIR/diskimage"
 # mke2fs -d with a directory keeps each file's owner (whoever ran the build),
 # so go through a tarball that records everything as root's. sshd, for one,
 # refuses a privsep directory or keys that root doesn't own.
 tar -C "$ROOTFS" --owner=0 --group=0 --numeric-owner -cf "$WORKDIR/rootfs.tar" .
-mkfs.ext4 -q -d "$WORKDIR/rootfs.tar" "$WORKDIR/diskimage" "$DISK_SIZE"
+mkfs.ext4 -q -d "$WORKDIR/rootfs.tar" "$SYS_DIR/diskimage" "$DISK_SIZE"
 rm -f "$WORKDIR/rootfs.tar"

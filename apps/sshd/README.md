@@ -91,7 +91,7 @@ sshd refuses a privsep directory or key files that aren't owned by root, so
 `build-disk.sh` makes every file on the disk root's, whoever runs the build.
 
 The host key's private half is in `linux-src/rootfs/` and
-`linux-src/diskimage` (both ignored by git), as well as in
+`sys/diskimage` (both ignored by git), as well as in
 `linux-src/ssh_host_ed25519_key`.
 
 ## Kernel support

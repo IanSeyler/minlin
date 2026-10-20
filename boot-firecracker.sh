@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# Boot the kernel/diskimage produced by build-linux.sh under Firecracker.
+# Boot sys/vmlinux (from build-linux.sh) and sys/diskimage (from
+# build-disk.sh) under Firecracker.
 # Firecracker loads the uncompressed vmlinux (the initramfs is built into it)
 # and appends virtio_mmio.device= entries to the kernel command line itself.
 # Firecracker exits when the guest resets through its emulated i8042, so
@@ -38,8 +39,8 @@ set -- "${args[@]}"
 quiet=quiet
 [ "$DEBUG" -eq 1 ] && quiet=
 
-WORKDIR="${1:-$PWD/linux-src}"
-KERNEL_DIR="$WORKDIR/linux"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+SYS_DIR="$SCRIPT_DIR/sys"
 BRIDGE="${BRIDGE:-br0}"
 TAP="${TAP:-fctap0}"
 GUEST_IP="${GUEST_IP:-}"
@@ -113,12 +114,12 @@ config="$(mktemp --tmpdir firecracker-config.XXXXXX.json)"
 cat > "$config" <<EOF
 {
     "boot-source": {
-        "kernel_image_path": "$KERNEL_DIR/vmlinux",
+        "kernel_image_path": "$SYS_DIR/vmlinux",
         "boot_args": "console=ttyS0 $quiet reboot=k panic=1 ip=$GUEST_IP::$gateway:$netmask:$GUEST_NAME:eth0:off"
     },
     "drives": [{
         "drive_id": "disk0",
-        "path_on_host": "$WORKDIR/diskimage",
+        "path_on_host": "$SYS_DIR/diskimage",
         "is_root_device": false,
         "is_read_only": false
     }],

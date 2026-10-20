@@ -8,13 +8,16 @@
 # configures a minimal x86-64 build for KVM microVMs (virtio-mmio, no PCI).
 #
 # The kernel is app-agnostic: build-disk.sh builds the diskimage init mounts
-# as /, holding whichever program from apps/ the VM should run.
+# as /, holding whichever program from apps/ the VM should run. A successful
+# build copies bzImage (for QEMU) and vmlinux (for Firecracker) into sys/,
+# next to the diskimage.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 WORKDIR="${1:-$PWD/linux-src}"
 KERNEL_DIR="$WORKDIR/linux"
+SYS_DIR="$SCRIPT_DIR/sys"
 JOBS="$(nproc)"
 KERNEL_VERSION="7.1"
 KERNEL_ZIP_URL="https://github.com/torvalds/linux/archive/refs/tags/v${KERNEL_VERSION}.zip"
@@ -205,6 +208,12 @@ build_kernel() {
     make -C "$KERNEL_DIR" ARCH=x86_64 -j"$JOBS"
 }
 
+install_kernel() {
+    log "Copying bzImage and vmlinux into $SYS_DIR"
+    mkdir -p "$SYS_DIR"
+    cp "$KERNEL_DIR/arch/x86/boot/bzImage" "$KERNEL_DIR/vmlinux" "$SYS_DIR/"
+}
+
 write_init() {
     log "Copying init.c"
     cp "$SCRIPT_DIR/init.c" "$WORKDIR/init.c"
@@ -239,7 +248,7 @@ boot_qemu() {
     "$SCRIPT_DIR/boot-qemu.sh" "$WORKDIR"
 }
 
-# Start the kernel build from scratch, but keep any diskimage from build-disk.sh.
+# Start the kernel build from scratch.
 rm -rf "$KERNEL_DIR" "$WORKDIR/init" "$WORKDIR/init.c" "$WORKDIR/initramfs.list"
 mkdir -p "$WORKDIR"
 check_deps
@@ -250,4 +259,5 @@ build_init
 write_initramfs_list
 configure_kernel
 build_kernel
+install_kernel
 #boot_qemu

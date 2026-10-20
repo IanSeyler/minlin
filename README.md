@@ -13,8 +13,8 @@ This project is very similar to other Linux "Unikernel" projects.
 
 ## Build and boot
 
-    ./build-linux.sh                 # kernel, with init built in
-    ./build-disk.sh lighttpd         # linux-src/diskimage for apps/lighttpd
+    ./build-linux.sh                 # sys/bzImage + sys/vmlinux, init built in
+    ./build-disk.sh lighttpd         # sys/diskimage for apps/lighttpd
                                      # (or: python / top / bash / sshd)
     HOSTFWD=8080 ./boot-qemu.sh      # then: curl http://localhost:8080/
                                      # (SSHFWD=2222 for ssh -p 2222 root@localhost)

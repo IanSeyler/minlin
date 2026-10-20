@@ -96,7 +96,7 @@ from `--config=/etc/tailscaled.conf` instead. That file locks tailscaled's
 settings, so to change them, edit `install.sh` and rebuild the disk.
 
 The auth key is stored in plain text in `/etc/tailscaled.conf`, so it's in
-`linux-src/rootfs/` and `linux-src/diskimage` on the host (both ignored by
+`linux-src/rootfs/` and `sys/diskimage` on the host (both ignored by
 git). Treat those files like the key, or use a short-lived ephemeral key.
 
 ## Updating Tailscale
