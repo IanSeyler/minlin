@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/sysinfo.h>
+#include <sys/utsname.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
@@ -362,7 +363,12 @@ static void wait_for(pid_t target) {
 }
 
 int main(void) {
-	fprintf(stderr, "minlin - MINimal LINux\n");
+	fprintf(stderr, "========================================\nminlin - MINimal LINux");
+	struct utsname uts;
+	if (uname(&uts) == 0)
+		fprintf(stderr, " - kernel %s", uts.release);
+	fprintf(stderr, "\n========================================\n");
+
 	mount("devtmpfs", "/dev", "devtmpfs", 0, NULL);
 
 	struct sysinfo info;
@@ -388,6 +394,7 @@ int main(void) {
 
 	sync();
 	mount(NULL, "/", NULL, MS_REMOUNT | MS_RDONLY, NULL);
+	fprintf(stderr, "========================================\nminlin - MINimal LINux - done!\n========================================\n");
 	/* No ACPI power-off in a microVM; the VMM exits on reboot instead. */
 	reboot(RB_AUTOBOOT);
 	return 0;
