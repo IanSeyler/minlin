@@ -3,7 +3,7 @@
 # Build and boot a "naked" Linux kernel with a hand-written init, following
 # https://nick.zoic.org/art/boot-naked-linux/
 #
-# Downloads the Linux source zip, compiles a small static init.c (with musl
+# Downloads the Linux source tarball, compiles a small static init.c (with musl
 # when available), embeds it as the kernel's built-in initramfs, and
 # configures a minimal x86-64 build for KVM microVMs (virtio-mmio, no PCI).
 #
@@ -19,20 +19,20 @@ WORKDIR="${1:-$PWD/linux-src}"
 KERNEL_DIR="$WORKDIR/linux"
 SYS_DIR="$SCRIPT_DIR/sys"
 JOBS="$(nproc)"
-KERNEL_VERSION="7.1" # 6.18 also tested as it is LTS
-KERNEL_ZIP_URL="https://github.com/torvalds/linux/archive/refs/tags/v${KERNEL_VERSION}.zip"
-KERNEL_ZIP="$SCRIPT_DIR/linux-${KERNEL_VERSION}.zip"
+KERNEL_VERSION="7.2.11" # 6.18 also tested as it is LTS
+KERNEL_TARBALL_URL="https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_VERSION%%.*}.x/linux-${KERNEL_VERSION}.tar.xz"
+KERNEL_TARBALL="$SCRIPT_DIR/linux-${KERNEL_VERSION}.tar.xz"
 
 log() { printf '\n>>> %s\n' "$*"; }
 
 check_deps() {
     local missing=()
-    for tool in curl unzip make gcc bc flex bison qemu-system-x86_64; do
+    for tool in curl tar xz make gcc bc flex bison qemu-system-x86_64; do
         command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
     done
     if [ "${#missing[@]}" -gt 0 ]; then
         echo "Missing required tools: ${missing[*]}" >&2
-        echo "On Debian/Ubuntu: sudo apt install curl unzip build-essential bc flex bison qemu-system-x86" >&2
+        echo "On Debian/Ubuntu: sudo apt install curl xz-utils build-essential bc flex bison qemu-system-x86" >&2
         exit 1
     fi
 }
@@ -43,15 +43,15 @@ fetch_kernel() {
         return
     fi
 
-    if [ ! -f "$KERNEL_ZIP" ]; then
-        log "Downloading Linux v$KERNEL_VERSION into $KERNEL_ZIP"
-        curl -L -o "$KERNEL_ZIP" "$KERNEL_ZIP_URL"
+    if [ ! -f "$KERNEL_TARBALL" ]; then
+        log "Downloading Linux v$KERNEL_VERSION into $KERNEL_TARBALL"
+        curl -fL -o "$KERNEL_TARBALL" "$KERNEL_TARBALL_URL"
     else
-        log "Zip already present at $KERNEL_ZIP, skipping download"
+        log "Tarball already present at $KERNEL_TARBALL, skipping download"
     fi
 
     log "Extracting kernel source into $KERNEL_DIR"
-    unzip -q "$KERNEL_ZIP" -d "$WORKDIR"
+    tar -xJf "$KERNEL_TARBALL" -C "$WORKDIR"
     mv "$WORKDIR/linux-${KERNEL_VERSION}" "$KERNEL_DIR"
 }
 
