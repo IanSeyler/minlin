@@ -119,11 +119,13 @@ static void setup_network(void) {
 		perror("ioctl SIOCSIFFLAGS");
 		goto out;
 	}
-	fprintf(stderr, "net: %s up with %s netmask %s\n", dev, client,
+	fprintf(stderr, "net: %s up with %s, netmask %s", dev, client,
 		mask ? mask : "(classful default)");
 
 	if (gw && add_default_route(sock, dev, gw) == 0)
-		fprintf(stderr, "default route via %s\n", gw);
+		fprintf(stderr, ", gateway %s\n", gw);
+	else
+		fprintf(stderr, "\n";
 out:
 	close(sock);
 }
