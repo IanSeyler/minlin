@@ -18,7 +18,7 @@
 # Guest RAM is 32MB unless MEM= says otherwise (in MB). The guest's hostname
 # is the kernel's default (minlin) unless GUEST_NAME= gives one.
 #
-# Kernel messages are hidden (quiet) unless --debug is given.
+# Kernel messages are hidden (loglevel=0) unless --debug is given.
 
 set -euo pipefail
 
@@ -32,10 +32,11 @@ for arg in "$@"; do
 done
 set -- "${args[@]}"
 
-# quiet keeps kernel messages off the slow emulated serial console, which
+# loglevel=0 keeps all kernel messages (even KERN_EMERG ones, which quiet
+# lets through) off the slow emulated serial console, which
 # roughly halves boot time; --debug shows them.
-quiet=quiet
-[ "$DEBUG" -eq 1 ] && quiet=
+loglevel=loglevel=0
+[ "$DEBUG" -eq 1 ] && loglevel=
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 SYS_DIR="$SCRIPT_DIR/sys"
@@ -62,7 +63,7 @@ qemu-system-x86_64 "${kvm_flag[@]}" -m "${MEM}M" -nographic -nodefaults -no-rebo
     -M microvm,acpi=off,pcie=off,pic=off,rtc=off \
     -serial stdio \
     -kernel "$SYS_DIR/bzImage" \
-    -append "console=ttyS0 $quiet reboot=t ip=$ip" \
+    -append "console=ttyS0 $loglevel reboot=t ip=$ip" \
     -drive id=disk0,file="$SYS_DIR/diskimage",if=none,format=raw \
     -device virtio-blk-device,drive=disk0 \
     -netdev "$netdev" \

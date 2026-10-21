@@ -20,7 +20,7 @@
 # Guest RAM is 32MB unless MEM= says otherwise (in MB). The guest's hostname
 # is the kernel's default (minlin) unless GUEST_NAME= gives one.
 #
-# Kernel messages are hidden (quiet) unless --debug is given.
+# Kernel messages are hidden (loglevel=0) unless --debug is given.
 
 set -euo pipefail
 
@@ -34,10 +34,11 @@ for arg in "$@"; do
 done
 set -- "${args[@]}"
 
-# quiet keeps kernel messages off the slow emulated serial console, which
+# loglevel=0 keeps all kernel messages (even KERN_EMERG ones, which quiet
+# lets through) off the slow emulated serial console, which
 # roughly halves boot time; --debug shows them.
-quiet=quiet
-[ "$DEBUG" -eq 1 ] && quiet=
+loglevel=loglevel=0
+[ "$DEBUG" -eq 1 ] && loglevel=
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 SYS_DIR="$SCRIPT_DIR/sys"
@@ -119,7 +120,7 @@ cat > "$config" <<EOF
 {
     "boot-source": {
         "kernel_image_path": "$SYS_DIR/vmlinux",
-        "boot_args": "console=ttyS0 $quiet reboot=k panic=1 $i8042 ip=$GUEST_IP::$gateway:$netmask:$GUEST_NAME:eth0:off"
+        "boot_args": "console=ttyS0 $loglevel reboot=k panic=1 $i8042 ip=$GUEST_IP::$gateway:$netmask:$GUEST_NAME:eth0:off"
     },
     "drives": [{
         "drive_id": "disk0",
