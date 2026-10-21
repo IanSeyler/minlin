@@ -406,7 +406,7 @@ static void wait_for(pid_t target) {
  */
 static void stop_all(void) {
 	struct timespec now, deadline, left;
-	fprintf(stderr, "init: shutting down, sending SIGTERM to all processes\n");
+	fprintf(stderr, "\ninit: shutting down, sending SIGTERM to all processes\n");
 	kill(-1, SIGTERM);
 	clock_gettime(CLOCK_MONOTONIC, &deadline);
 	deadline.tv_sec += STOP_TIMEOUT;
