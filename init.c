@@ -427,7 +427,7 @@ static void stop_all(void) {
 			break;
 		next_signal(&left);
 	}
-	fprintf(stderr, "init: sending SIGKILL to remaining processes\n");
+	//fprintf(stderr, "init: sending SIGKILL to remaining processes\n");
 	kill(-1, SIGKILL);
 	while (wait(NULL) > 0)
 		;
