@@ -111,11 +111,15 @@ fi
 
 config="$(mktemp --tmpdir firecracker-config.XXXXXX.json)"
 
+# Firecracker's i8042 has only a keyboard port (enough for SendCtrlAltDel);
+# these skip the AUX, MUX and PnP probing that otherwise adds ~0.25s to boot.
+i8042="i8042.noaux i8042.nomux i8042.nopnp i8042.dumbkbd"
+
 cat > "$config" <<EOF
 {
     "boot-source": {
         "kernel_image_path": "$SYS_DIR/vmlinux",
-        "boot_args": "console=ttyS0 $quiet reboot=k panic=1 ip=$GUEST_IP::$gateway:$netmask:$GUEST_NAME:eth0:off"
+        "boot_args": "console=ttyS0 $quiet reboot=k panic=1 $i8042 ip=$GUEST_IP::$gateway:$netmask:$GUEST_NAME:eth0:off"
     },
     "drives": [{
         "drive_id": "disk0",

@@ -4,6 +4,7 @@
 #include <string.h>
 #include <errno.h>
 #include <signal.h>
+#include <time.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/mount.h>
@@ -245,33 +246,35 @@ static struct service services[MAX_SERVICES];
 static int nservices;
 
 /*
- * Set by SIGINT (Ctrl-Alt-Del, with CAD disabled), SIGTERM or SIGPWR. The
- * handlers are installed without SA_RESTART, so a blocking wait() returns
- * EINTR and the reaping loop sees the flag.
+ * init keeps SIGCHLD and its shutdown signals (SIGINT from Ctrl-Alt-Del with
+ * CAD disabled, SIGTERM, SIGPWR) blocked and takes them with sigtimedwait(),
+ * so one that arrives between reaping and waiting stays pending instead of
+ * being missed. Children get the original mask back before exec.
  */
-static volatile sig_atomic_t shutting_down;
-static volatile sig_atomic_t alarmed;
-
-static void on_shutdown(int sig) {
-	(void)sig;
-	shutting_down = 1;
-}
-
-static void on_alarm(int sig) {
-	(void)sig;
-	alarmed = 1;
-}
+static sigset_t init_signals, orig_mask;
+static int shutting_down;
 
 static void setup_signals(void) {
-	struct sigaction sa;
-	memset(&sa, 0, sizeof(sa));
-	sigemptyset(&sa.sa_mask);
-	sa.sa_handler = on_shutdown;
-	sigaction(SIGINT, &sa, NULL);
-	sigaction(SIGTERM, &sa, NULL);
-	sigaction(SIGPWR, &sa, NULL);
-	sa.sa_handler = on_alarm;
-	sigaction(SIGALRM, &sa, NULL);
+	sigemptyset(&init_signals);
+	sigaddset(&init_signals, SIGCHLD);
+	sigaddset(&init_signals, SIGINT);
+	sigaddset(&init_signals, SIGTERM);
+	sigaddset(&init_signals, SIGPWR);
+	sigprocmask(SIG_BLOCK, &init_signals, &orig_mask);
+}
+
+/*
+ * Wait for one of init_signals, for at most timeout (forever if NULL).
+ * Returns the signal, or 0 on timeout. A shutdown signal sets shutting_down.
+ */
+static int next_signal(const struct timespec *timeout) {
+	int sig;
+	while ((sig = sigtimedwait(&init_signals, NULL, timeout)) < 0)
+		if (errno != EINTR)
+			return 0;
+	if (sig != SIGCHLD)
+		shutting_down = 1;
+	return sig;
 }
 
 /*
@@ -346,6 +349,7 @@ static void spawn(struct service *svc) {
 		return;
 	}
 	if (pid == 0) {
+		sigprocmask(SIG_SETMASK, &orig_mask, NULL);
 		setsid();
 		execv(svc->argv[0], svc->argv);
 		fprintf(stderr, "init: exec %s: %s\n", svc->argv[0], strerror(errno));
@@ -358,16 +362,18 @@ static void spawn(struct service *svc) {
 /*
  * Reap children until target exits (or, with target -1, until there are no
  * children left). As PID 1 this also collects orphans that were reparented
- * to us, and restarts respawn services as they exit.
+ * to us, and restarts respawn services as they exit. Returns early when a
+ * shutdown signal arrives.
  */
 static void wait_for(pid_t target) {
 	while (!shutting_down) {
 		int status;
-		pid_t pid = wait(&status);
-		if (pid < 0) {
-			if (errno == EINTR)
-				continue;
-			return;
+		pid_t pid = waitpid(-1, &status, WNOHANG);
+		if (pid < 0)
+			return;		/* no children left */
+		if (pid == 0) {
+			next_signal(NULL);
+			continue;
 		}
 
 		struct service *svc = NULL;
@@ -399,16 +405,31 @@ static void wait_for(pid_t target) {
  * kill whatever is left. kill(-1) from PID 1 reaches everything but init.
  */
 static void stop_all(void) {
+	struct timespec now, deadline, left;
 	fprintf(stderr, "init: shutting down, sending SIGTERM to all processes\n");
 	kill(-1, SIGTERM);
-	alarm(STOP_TIMEOUT);
-	while (!alarmed && (wait(NULL) > 0 || errno == EINTR))
-		;
-	alarm(0);
-	if (alarmed)
-		fprintf(stderr, "init: sending SIGKILL to remaining processes\n");
+	clock_gettime(CLOCK_MONOTONIC, &deadline);
+	deadline.tv_sec += STOP_TIMEOUT;
+	for (;;) {
+		pid_t pid;
+		while ((pid = waitpid(-1, NULL, WNOHANG)) > 0)
+			;
+		if (pid < 0)
+			return;		/* everything exited */
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		left.tv_sec = deadline.tv_sec - now.tv_sec;
+		left.tv_nsec = deadline.tv_nsec - now.tv_nsec;
+		if (left.tv_nsec < 0) {
+			left.tv_sec--;
+			left.tv_nsec += 1000000000L;
+		}
+		if (left.tv_sec < 0)
+			break;
+		next_signal(&left);
+	}
+	fprintf(stderr, "init: sending SIGKILL to remaining processes\n");
 	kill(-1, SIGKILL);
-	while (wait(NULL) > 0 || errno == EINTR)
+	while (wait(NULL) > 0)
 		;
 }
 
