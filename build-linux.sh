@@ -173,13 +173,32 @@ configure_kernel() {
         --disable RD_GZIP --disable RD_BZIP2 --disable RD_LZMA \
         --disable RD_XZ --disable RD_LZO --disable RD_LZ4 --disable RD_ZSTD
 
-    # A KVM microVM has no PCI bus, VGA, keyboard, microcode loading or
-    # partitioned disks, so drop everything olddefconfig would pull in for them.
+    # Firecracker's SendCtrlAltDel presses Ctrl-Alt-Del on its emulated
+    # i8042 keyboard. The VT keyboard handler is what turns that key combo
+    # into ctrl_alt_del(), which signals init (SIGINT, as init disables CAD)
+    # to shut down cleanly. The VT is only there for its keyboard: the console
+    # stays on ttyS0, and no mouse or serial-line input is needed.
+    log "Enabling the i8042 keyboard and VT for Ctrl-Alt-Del shutdown"
+    "$KERNEL_DIR/scripts/config" --file "$KERNEL_DIR/.config" \
+        --enable INPUT \
+        --enable INPUT_KEYBOARD \
+        --enable SERIO \
+        --enable SERIO_I8042 \
+        --enable SERIO_LIBPS2 \
+        --enable KEYBOARD_ATKBD \
+        --enable VT \
+        --disable VT_CONSOLE --disable VT_HW_CONSOLE_BINDING \
+        --disable CONSOLE_TRANSLATIONS \
+        --disable INPUT_MOUSE --disable INPUT_MOUSEDEV \
+        --disable SERIO_SERPORT
+
+    # A KVM microVM has no PCI bus, VGA, microcode loading or partitioned
+    # disks, so drop everything olddefconfig would pull in for them.
     log "Disabling hardware and features a microVM never uses"
     "$KERNEL_DIR/scripts/config" --file "$KERNEL_DIR/.config" \
         --disable PCI \
-        --disable VT --disable VGA_CONSOLE --disable DUMMY_CONSOLE \
-        --disable INPUT --disable SERIO --disable HID_SUPPORT \
+        --disable VGA_CONSOLE \
+        --disable HID_SUPPORT \
         --disable LEGACY_PTYS \
         --disable EARLY_PRINTK \
         --enable PROCESSOR_SELECT \

@@ -245,6 +245,36 @@ static struct service services[MAX_SERVICES];
 static int nservices;
 
 /*
+ * Set by SIGINT (Ctrl-Alt-Del, with CAD disabled), SIGTERM or SIGPWR. The
+ * handlers are installed without SA_RESTART, so a blocking wait() returns
+ * EINTR and the reaping loop sees the flag.
+ */
+static volatile sig_atomic_t shutting_down;
+static volatile sig_atomic_t alarmed;
+
+static void on_shutdown(int sig) {
+	(void)sig;
+	shutting_down = 1;
+}
+
+static void on_alarm(int sig) {
+	(void)sig;
+	alarmed = 1;
+}
+
+static void setup_signals(void) {
+	struct sigaction sa;
+	memset(&sa, 0, sizeof(sa));
+	sigemptyset(&sa.sa_mask);
+	sa.sa_handler = on_shutdown;
+	sigaction(SIGINT, &sa, NULL);
+	sigaction(SIGTERM, &sa, NULL);
+	sigaction(SIGPWR, &sa, NULL);
+	sa.sa_handler = on_alarm;
+	sigaction(SIGALRM, &sa, NULL);
+}
+
+/*
  * Read INIT_CONF. Each non-blank line that does not start with '#' is
  *   <action> <path> [args...]
  * where action is one of
@@ -331,7 +361,7 @@ static void spawn(struct service *svc) {
  * to us, and restarts respawn services as they exit.
  */
 static void wait_for(pid_t target) {
-	for (;;) {
+	while (!shutting_down) {
 		int status;
 		pid_t pid = wait(&status);
 		if (pid < 0) {
@@ -352,7 +382,7 @@ static void wait_for(pid_t target) {
 			else
 				fprintf(stderr, "init: %s (pid %d) exited with status %d\n",
 					svc->argv[0], pid, WEXITSTATUS(status));
-			if (svc->action == ACT_RESPAWN) {
+			if (svc->action == ACT_RESPAWN && !shutting_down) {
 				sleep(1);	/* don't spin on a service that dies at once */
 				spawn(svc);
 			}
@@ -362,12 +392,36 @@ static void wait_for(pid_t target) {
 	}
 }
 
+#define STOP_TIMEOUT	5	/* seconds between SIGTERM and SIGKILL */
+
+/*
+ * Ask every process to exit, give them STOP_TIMEOUT seconds to do so, then
+ * kill whatever is left. kill(-1) from PID 1 reaches everything but init.
+ */
+static void stop_all(void) {
+	fprintf(stderr, "init: shutting down, sending SIGTERM to all processes\n");
+	kill(-1, SIGTERM);
+	alarm(STOP_TIMEOUT);
+	while (!alarmed && (wait(NULL) > 0 || errno == EINTR))
+		;
+	alarm(0);
+	if (alarmed)
+		fprintf(stderr, "init: sending SIGKILL to remaining processes\n");
+	kill(-1, SIGKILL);
+	while (wait(NULL) > 0 || errno == EINTR)
+		;
+}
+
 int main(void) {
 	fprintf(stderr, "========================================\nminlin - MINimal LINux");
 	struct utsname uts;
 	if (uname(&uts) == 0)
 		fprintf(stderr, " - kernel %s", uts.release);
 	fprintf(stderr, "\n========================================\n");
+
+	/* Have Ctrl-Alt-Del send init SIGINT rather than reboot at once. */
+	reboot(RB_DISABLE_CAD);
+	setup_signals();
 
 	mount("devtmpfs", "/dev", "devtmpfs", 0, NULL);
 
@@ -383,13 +437,16 @@ int main(void) {
 		setenv("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", 1);
 		setenv("HOME", "/", 1);
 
-		for (int i = 0; i < nservices; i++) {
+		for (int i = 0; i < nservices && !shutting_down; i++) {
 			spawn(&services[i]);
 			if (services[i].action == ACT_WAIT && services[i].pid)
 				wait_for(services[i].pid);
 		}
 		wait_for(-1);
-		fprintf(stderr, "init: no processes left\n");
+		if (shutting_down)
+			stop_all();
+		else
+			fprintf(stderr, "init: no processes left\n");
 	}
 
 	sync();
