@@ -473,6 +473,7 @@ int main(void) {
 	sync();
 	mount(NULL, "/", NULL, MS_REMOUNT | MS_RDONLY, NULL);
 	fprintf(stderr, "========================================\nminlin - MINimal LINux - done!\n========================================\n");
+	fflush(stderr);
 	/* No ACPI power-off in a microVM; the VMM exits on reboot instead. */
 	reboot(RB_AUTOBOOT);
 	return 0;
